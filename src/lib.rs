@@ -130,8 +130,8 @@ impl_hash! {
 #[macro_export]
 macro_rules! impl_hash {
     ($( $Type:ty $(where <$($G:ident: $Gb:ident),+>)? ),*$(,)?) => {
-        $(impl$(<$($G: $Gb),+>)? Hash for $Type {
-            fn hash<H: Hasher>(&self, state: &mut H) {
+        $(impl$(<$($G: $Gb),+>)? std::hash::Hash for $Type {
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
                 self.hash_object(state);
             }
         })*
