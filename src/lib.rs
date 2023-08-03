@@ -57,13 +57,17 @@
 //!     dyn MyTrait,
 //!     dyn AnotherTrait,
 //!
-//!     // structs and enums are supported if they deref to a target that implements HashObject or Hash.
+//!     // structs and enums are supported if they deref to
+//!     // a target that implements HashObject or Hash.
 //!     MyStruct,
 //!
 //!     // special syntax for generics.
 //!     MySimpleGeneric<T> where <T>,
 //!     MyGenericType<T, F> where <T, F: HashObject>,
 //!     dyn MyGenericTrait<T> where <T: SomeTraitBound>,
+//! 
+//!     // the actual impl for Object
+//!     Object<T> where <T: Deref<Target=X>, X: HashObject + ?Sized>,
 //! }
 //! ```
 
@@ -116,14 +120,36 @@ where
 }
 
 impl_eq! {
-    Object<T> where <T: Deref<Target=X>, X: EqObject>,
+    Object<T> where <T: Deref<Target=X>, X: EqObject + ?Sized>,
     dyn EqObject,
 }
 
 #[macro_export]
 macro_rules! impl_eq {
-    ($( $Type:ty $(where <$($G:ident: $Gb:ident $(<$($GbIn:ident$(=$GbInEq:ty)?)+>)? ),+>)? ),*$(,)?) => {
-        $(impl$(<$($G: $Gb $(<$($GbIn$(=$GbInEq)?)+>)? ),+>)?
+    ($(
+        $Type:ty $(where <$(
+            $G:ident$(: 
+                $($Gb:ident $(<$($GbIn:ident$(=$GbInEq:ty)?)+>)?)?
+                $(?$Gbq:ident)?
+                $(
+                    +
+                    $($Gb2:ident $(<$($GbIn2:ident$(=$GbInEq2:ty)?)+>)?)?
+                    $(?$Gbq2:ident)?
+                )*
+            )?
+        ),+>)?
+    ),*$(,)?) => {$(
+        impl$(<$(
+            $G$(:
+                $($Gb $(<$($GbIn$(=$GbInEq)?)+>)?)?
+                $(?$Gbq)?
+                $(
+                    +
+                    $($Gb2 $({$($GbIn2$(=$GbInEq2:ty)?)+})?)?
+                    $(?$Gbq2)?
+                )*
+            )?
+        ),+>)?
         Eq for $Type where $Type: 'static {})*
     };
 }
@@ -151,15 +177,37 @@ where
 }
 
 impl_partial_eq! {
-    Object<T> where <T: Deref<Target=X>, X: PartialEqObject>,
+    Object<T> where <T: Deref<Target=X>, X: PartialEqObject + ?Sized>,
     dyn PartialEqObject,
     dyn EqObject,
 }
 
 #[macro_export]
 macro_rules! impl_partial_eq {
-    ($( $Type:ty $(where <$($G:ident: $Gb:ident $(<$($GbIn:ident$(=$GbInEq:ty)?)+>)? ),+>)? ),*$(,)?) => {
-        $(impl$(<$($G: $Gb $(<$($GbIn$(=$GbInEq)?)+>)? ),+>)?
+    ($(
+        $Type:ty $(where <$(
+            $G:ident$(: 
+                $($Gb:ident $(<$($GbIn:ident$(=$GbInEq:ty)?)+>)?)?
+                $(?$Gbq:ident)?
+                $(
+                    +
+                    $($Gb2:ident $(<$($GbIn2:ident$(=$GbInEq2:ty)?)+>)?)?
+                    $(?$Gbq2:ident)?
+                )*
+            )?
+        ),+>)?
+    ),*$(,)?) => {$(
+        impl$(<$(
+            $G$(:
+                $($Gb $(<$($GbIn$(=$GbInEq)?)+>)?)?
+                $(?$Gbq)?
+                $(
+                    +
+                    $($Gb2 $({$($GbIn2$(=$GbInEq2:ty)?)+})?)?
+                    $(?$Gbq2)?
+                )*
+            )?
+        ),+>)?
         PartialEq for $Type where $Type: 'static {
             fn eq(&self, other: &Self) -> bool {
                 self.eq_object(other.as_partial_eq_object())
@@ -185,20 +233,42 @@ impl<T: Hash> HashObject for T {
 }
 
 impl_hash! {
-    Object<T> where <T: Deref<Target=X>, X: HashObject>,
+    Object<T> where <T: Deref<Target=X>, X: HashObject + ?Sized>,
     dyn HashObject,
 }
 
 #[macro_export]
 macro_rules! impl_hash {
-    ($( $Type:ty $(where <$($G:ident: $Gb:ident $(<$($GbIn:ident$(=$GbInEq:ty)?)+>)? ),+>)? ),*$(,)?) => {
-        $(impl$(<$($G: $Gb $(<$($GbIn$(=$GbInEq)?)+>)? ),+>)?
+    ($(
+        $Type:ty $(where <$(
+            $G:ident$(: 
+                $($Gb:ident $(<$($GbIn:ident$(=$GbInEq:ty)?)+>)?)?
+                $(?$Gbq:ident)?
+                $(
+                    +
+                    $($Gb2:ident $(<$($GbIn2:ident$(=$GbInEq2:ty)?)+>)?)?
+                    $(?$Gbq2:ident)?
+                )*
+            )?
+        ),+>)?
+    ),*$(,)?) => {$(
+        impl$(<$(
+            $G$(:
+                $($Gb $(<$($GbIn$(=$GbInEq)?)+>)?)?
+                $(?$Gbq)?
+                $(
+                    +
+                    $($Gb2 $({$($GbIn2$(=$GbInEq2:ty)?)+})?)?
+                    $(?$Gbq2)?
+                )*
+            )?
+        ),+>)?
         std::hash::Hash for $Type {
             fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
                 self.hash_object(state);
             }
-        })*
-    };
+        }
+    )*};
 }
 
 #[cfg(test)]
@@ -234,6 +304,21 @@ mod test {
         t.hash(&mut hasher);
         hasher.finish()
     }
+
+    /// compiler test: hash
+    trait MyHash: HashObject {}
+    #[derive(Hash)]
+    struct MyHashWrapper(Object<Box<dyn MyHash>>);
+
+    /// compiler test: partial eq
+    trait MyPartialEq: PartialEqObject {}
+    #[derive(PartialEq)]
+    struct MyPartialEqWrapper(Object<Box<dyn MyPartialEq>>);
+
+    /// compiler test: eq
+    trait MyEq: EqObject + PartialEqObject {}
+    #[derive(PartialEq, Eq)]
+    struct MyEqWrapper(Object<Box<dyn MyEq>>);
 }
 
 // /// TODO:

@@ -42,12 +42,16 @@ impl_hash! {
     dyn MyTrait,
     dyn AnotherTrait,
 
-    // structs and enums are supported if they deref to a target that implements HashObject or Hash.
+    // structs and enums are supported if they deref to
+    // a target that implements HashObject or Hash.
     MyStruct,
 
     // special syntax for generics.
     MySimpleGeneric<T> where <T>,
     MyGenericType<T, F> where <T, F: HashObject>,
     dyn MyGenericTrait<T> where <T: SomeTraitBound>,
+
+    // the actual impl for Object
+    Object<T> where <T: Deref<Target=X>, X: HashObject + ?Sized>,
 }
 ```
