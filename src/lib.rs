@@ -20,7 +20,7 @@
 //! Let's take the `Hash` trait as an example. `Hash` is not object-safe. This
 //! means that `dyn Hash` is not a valid type in rust. Now, imagine you define
 //! this custom trait:
-//! ```rust
+//! ```rust ignore
 //! pub trait MyTrait: Hash {}
 //! ```
 //! Since `MyTrait` extends `Hash`, it is not object safe either, and `dyn
@@ -28,46 +28,46 @@
 //! limitation, so you can have object-safe traits whose objects implement
 //! non-object-safe traits such as `Hash`.
 //!
-//! Instead of expressing `Hash` as the trait bound, express `HashObject` as the
+//! Instead of expressing `Hash` as the trait bound, express `HashObj` as the
 //! trait bound.
-//! ```rust
-//! pub trait MyTrait: HashObject {}
+//! ```rust ignore
+//! pub trait MyTrait: HashObj {}
 //! ```
 //!
-//! You do not need to implement `HashObject`. It is automatically implemented
-//! for any type that implements `Hash`. Now, `dyn MyTrait` is object-safe. Add
-//! one line of code if you want `dyn MyTrait` to implement `Hash`:
+//! You do not need to implement `HashObj`. It is automatically implemented for
+//! any type that implements `Hash`. Now, `dyn MyTrait` is object-safe. Add one
+//! line of code if you want `dyn MyTrait` to implement `Hash`:
 //!
-//! ```rust
+//! ```rust ignore
 //! impl_hash(dyn MyTrait);
 //! ```
 //!
-//! Here are all the characteristics that come with HashObject:
-//! - anything implementing `Hash` automatically implements `HashObject`
-//! - `dyn HashObject` implements `Hash`.
-//! - `Object<T>` implements `Hash` for any `T` that derefs to something
-//!   implementing `HashObject`.
-//! - `impl_hash` can implement `Hash` for any type that implements
-//!   `HashObject`, for example a trait object `dyn MyTrait` where `MyTrait` is
-//!   a trait extending `HashObject`.
+//! Here are all the characteristics that come with HashObj:
+//! - anything implementing `Hash` automatically implements `HashObj`
+//! - `dyn HashObj` implements `Hash`.
+//! - `Obj<T>` implements `Hash` for any `T` that derefs to something
+//!   implementing `HashObj`.
+//! - `impl_hash` can implement `Hash` for any type that implements `HashObj`,
+//!   for example a trait object `dyn MyTrait` where `MyTrait` is a trait
+//!   extending `HashObj`.
 //!
-//! ```rust
+//! ```rust ignore
 //! impl_hash! {
-//!     // typical use, where MyTrait: HashObject
+//!     // typical use, where MyTrait: HashObj
 //!     dyn MyTrait,
 //!     dyn AnotherTrait,
 //!
 //!     // structs and enums are supported if they deref to
-//!     // a target that implements HashObject or Hash.
+//!     // a target that implements HashObj or Hash.
 //!     MyStruct,
 //!
 //!     // special syntax for generics.
 //!     MySimpleGeneric<T> where <T>,
-//!     MyGenericType<T, F> where <T, F: HashObject>,
+//!     MyGenericType<T, F> where <T, F: HashObj>,
 //!     dyn MyGenericTrait<T> where <T: SomeTraitBound>,
-//! 
-//!     // the actual impl for Object
-//!     Object<T> where <T: Deref<Target=X>, X: HashObject + ?Sized>,
+//!
+//!     // the actual impl for Obj
+//!     Obj<T> where <T: Deref<Target=X>, X: HashObj + ?Sized>,
 //! }
 //! ```
 
@@ -76,11 +76,29 @@ use core::{
     hash::{Hash, Hasher},
     ops::{Deref, DerefMut},
 };
+use std::{rc::Rc, sync::Arc};
 
+/// Convenient wrapper struct that implements any of the traits supported by
+/// this crate if the contained type derefs to something implementing the
+/// `**Obj` analog trait.
 #[derive(Clone, Copy, Debug)]
-pub struct Object<T>(pub T);
+pub struct Obj<T>(pub T);
 
-impl<T> Deref for Object<T> {
+impl Obj<()> {
+    pub fn boxed<T>(item: T) -> Obj<Box<T>> {
+        Obj(Box::new(item))
+    }
+
+    pub fn rc<T>(item: T) -> Obj<Rc<T>> {
+        Obj(Rc::new(item))
+    }
+
+    pub fn arc<T>(item: T) -> Obj<Arc<T>> {
+        Obj(Arc::new(item))
+    }
+}
+
+impl<T> Deref for Obj<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -88,7 +106,7 @@ impl<T> Deref for Object<T> {
     }
 }
 
-impl<T> DerefMut for Object<T> {
+impl<T> DerefMut for Obj<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
@@ -106,29 +124,29 @@ impl<T: Any> AsAny for T {
 }
 
 /// Object-safe version of Eq
-pub trait EqObject: PartialEqObject {
-    fn as_eq_object(&self) -> &dyn EqObject;
+pub trait EqObj: PartialEqObj {
+    fn as_eq_object(&self) -> &dyn EqObj;
 }
 
-impl<T> EqObject for T
+impl<T> EqObj for T
 where
-    T: Eq + PartialEqObject,
+    T: Eq + PartialEqObj,
 {
-    fn as_eq_object(&self) -> &dyn EqObject {
+    fn as_eq_object(&self) -> &dyn EqObj {
         self
     }
 }
 
 impl_eq! {
-    Object<T> where <T: Deref<Target=X>, X: EqObject + ?Sized>,
-    dyn EqObject,
+    Obj<T> where <T: Deref<Target=X>, X: EqObj + ?Sized>,
+    dyn EqObj,
 }
 
 #[macro_export]
 macro_rules! impl_eq {
     ($(
         $Type:ty $(where <$(
-            $G:ident$(: 
+            $G:ident$(:
                 $($Gb:ident $(<$($GbIn:ident$(=$GbInEq:ty)?)+>)?)?
                 $(?$Gbq:ident)?
                 $(
@@ -155,38 +173,38 @@ macro_rules! impl_eq {
 }
 
 /// Object-safe version of PartialEq
-pub trait PartialEqObject: AsAny {
-    fn eq_object(&self, other: &dyn PartialEqObject) -> bool;
-    fn as_partial_eq_object(&self) -> &dyn PartialEqObject;
+pub trait PartialEqObj: AsAny {
+    fn eq_object(&self, other: &dyn PartialEqObj) -> bool;
+    fn as_partial_eq_object(&self) -> &dyn PartialEqObj;
 }
 
-impl<T> PartialEqObject for T
+impl<T> PartialEqObj for T
 where
     T: PartialEq + AsAny,
 {
-    fn eq_object(&self, other: &dyn PartialEqObject) -> bool {
+    fn eq_object(&self, other: &dyn PartialEqObj) -> bool {
         match other.as_any().downcast_ref::<Self>() {
             Some(other) => self == other,
             None => false,
         }
     }
 
-    fn as_partial_eq_object(&self) -> &dyn PartialEqObject {
+    fn as_partial_eq_object(&self) -> &dyn PartialEqObj {
         self
     }
 }
 
 impl_partial_eq! {
-    Object<T> where <T: Deref<Target=X>, X: PartialEqObject + ?Sized>,
-    dyn PartialEqObject,
-    dyn EqObject,
+    Obj<T> where <T: Deref<Target=X>, X: PartialEqObj + ?Sized>,
+    dyn PartialEqObj,
+    dyn EqObj,
 }
 
 #[macro_export]
 macro_rules! impl_partial_eq {
     ($(
         $Type:ty $(where <$(
-            $G:ident$(: 
+            $G:ident$(:
                 $($Gb:ident $(<$($GbIn:ident$(=$GbInEq:ty)?)+>)?)?
                 $(?$Gbq:ident)?
                 $(
@@ -217,31 +235,31 @@ macro_rules! impl_partial_eq {
 }
 
 /// Object-safe version of `std::hash::Hash`
-pub trait HashObject {
+pub trait HashObj {
     fn hash_object(&self, state: &mut dyn Hasher);
-    fn as_hash_object(&self) -> &dyn HashObject;
+    fn as_hash_object(&self) -> &dyn HashObj;
 }
 
-impl<T: Hash> HashObject for T {
+impl<T: Hash> HashObj for T {
     fn hash_object(&self, mut state: &mut dyn Hasher) {
         self.hash(&mut state);
     }
 
-    fn as_hash_object(&self) -> &dyn HashObject {
+    fn as_hash_object(&self) -> &dyn HashObj {
         self
     }
 }
 
 impl_hash! {
-    Object<T> where <T: Deref<Target=X>, X: HashObject + ?Sized>,
-    dyn HashObject,
+    Obj<T> where <T: Deref<Target=X>, X: HashObj + ?Sized>,
+    dyn HashObj,
 }
 
 #[macro_export]
 macro_rules! impl_hash {
     ($(
         $Type:ty $(where <$(
-            $G:ident$(: 
+            $G:ident$(:
                 $($Gb:ident $(<$($GbIn:ident$(=$GbInEq:ty)?)+>)?)?
                 $(?$Gbq:ident)?
                 $(
@@ -279,9 +297,9 @@ mod test {
 
     #[test]
     fn eq() {
-        let x: Box<dyn EqObject> = Box::new(10);
-        let y: Box<dyn EqObject> = Box::new(10);
-        let z: Box<dyn EqObject> = Box::new(11);
+        let x: Box<dyn EqObj> = Box::new(10);
+        let y: Box<dyn EqObj> = Box::new(10);
+        let z: Box<dyn EqObj> = Box::new(11);
         if x != y {
             panic!("should be equal")
         }
@@ -293,8 +311,8 @@ mod test {
     #[test]
     fn hash_works() {
         let x: &str = "Hello, World!";
-        let y: &dyn HashObject = "Hello, World!".as_hash_object();
-        let z: &dyn HashObject = "banana".as_hash_object();
+        let y: &dyn HashObj = "Hello, World!".as_hash_object();
+        let z: &dyn HashObj = "banana".as_hash_object();
         assert_eq!(hash(x), hash(y));
         assert_ne!(hash(y), hash(z));
     }
@@ -306,19 +324,19 @@ mod test {
     }
 
     /// compiler test: hash
-    trait MyHash: HashObject {}
+    trait MyHash: HashObj {}
     #[derive(Hash)]
-    struct MyHashWrapper(Object<Box<dyn MyHash>>);
+    struct MyHashWrapper(Obj<Box<dyn MyHash>>);
 
     /// compiler test: partial eq
-    trait MyPartialEq: PartialEqObject {}
+    trait MyPartialEq: PartialEqObj {}
     #[derive(PartialEq)]
-    struct MyPartialEqWrapper(Object<Box<dyn MyPartialEq>>);
+    struct MyPartialEqWrapper(Obj<Box<dyn MyPartialEq>>);
 
     /// compiler test: eq
-    trait MyEq: EqObject + PartialEqObject {}
+    trait MyEq: EqObj + PartialEqObj {}
     #[derive(PartialEq, Eq)]
-    struct MyEqWrapper(Object<Box<dyn MyEq>>);
+    struct MyEqWrapper(Obj<Box<dyn MyEq>>);
 }
 
 // /// TODO:
