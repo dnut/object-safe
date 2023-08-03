@@ -26,7 +26,7 @@
 //! Since `MyTrait` extends `Hash`, it is not object safe either, and `dyn
 //! MyTrait` is not a valid type. This crate offers a way to work around this
 //! limitation, so you can have object-safe traits whose objects implement
-//! non-object-safe traits such as `Hash`.
+//! object-unsafe traits such as `Hash`.
 //!
 //! Instead of expressing `Hash` as the trait bound, express `HashObj` as the
 //! trait bound.

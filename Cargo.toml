@@ -2,5 +2,9 @@
 name = "object-safe"
 version = "0.1.0"
 edition = "2021"
-
-[dependencies]
+description = "Implement object-unsafe traits for trait objects"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/dnut/object-safe"
+readme = "README.md"
+keywords = ["trait", "object", "safe", "type", "dyn"]
+categories = ["data-structures", "rust-patterns"]
