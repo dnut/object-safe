@@ -1,28 +1,42 @@
-//! Do you need trait objects, in the form `dyn MyTrait`, that implement traits which are not object-safe?
+//! Do you need trait objects, in the form `dyn MyTrait`, that implement traits
+//! which are not object-safe?
 //!
-//! This crate solves the problem by providing object-safe traits which are analogous to some commonly used traits that are not object-safe, and auto-implementing both for a wide range of types. Currently, the following traits are supported:
+//! This crate solves the problem by providing object-safe traits which are
+//! analogous to some commonly used traits that are not object-safe, and
+//! auto-implementing both for a wide range of types. Currently, the following
+//! traits are supported:
 //! - Hash
 //! - PartialEq
 //! - Eq
 //!
-//! I plan to extend this support to other traits, and offer macros to simplify the process for custom traits.
+//! I plan to extend this support to other traits, and offer macros to simplify
+//! the process for custom traits.
 //!
-//! Learn about object safety here: https://doc.rust-lang.org/reference/items/traits.html#object-safety
+//! Learn about object safety here:
+//! https://doc.rust-lang.org/reference/items/traits.html#object-safety
 //!
 //! ## Example
 //!
-//! Let's take the `Hash` trait as an example. `Hash` is not object-safe. This means that `dyn Hash` is not a valid type in rust. Now, imagine you define this custom trait:
+//! Let's take the `Hash` trait as an example. `Hash` is not object-safe. This
+//! means that `dyn Hash` is not a valid type in rust. Now, imagine you define
+//! this custom trait:
 //! ```rust
 //! pub trait MyTrait: Hash {}
 //! ```
-//! Since `MyTrait` extends `Hash`, it is not object safe either, and `dyn MyTrait` is not a valid type. This crate offers a way to work around this limitation, so you can have object-safe traits whose objects implement non-object-safe traits such as `Hash`.
+//! Since `MyTrait` extends `Hash`, it is not object safe either, and `dyn
+//! MyTrait` is not a valid type. This crate offers a way to work around this
+//! limitation, so you can have object-safe traits whose objects implement
+//! non-object-safe traits such as `Hash`.
 //!
-//! Instead of expressing `Hash` as the trait bound, express `HashObject` as the trait bound.
+//! Instead of expressing `Hash` as the trait bound, express `HashObject` as the
+//! trait bound.
 //! ```rust
 //! pub trait MyTrait: HashObject {}
 //! ```
 //!
-//! You do not need to implement `HashObject`. It is automatically implemented for any type that implements `Hash`. Now, `dyn MyTrait` is object-safe. Add one line of code if you want `dyn MyTrait` to implement `Hash`:
+//! You do not need to implement `HashObject`. It is automatically implemented
+//! for any type that implements `Hash`. Now, `dyn MyTrait` is object-safe. Add
+//! one line of code if you want `dyn MyTrait` to implement `Hash`:
 //!
 //! ```rust
 //! impl_hash(dyn MyTrait);
@@ -31,8 +45,11 @@
 //! Here are all the characteristics that come with HashObject:
 //! - anything implementing `Hash` automatically implements `HashObject`
 //! - `dyn HashObject` implements `Hash`.
-//! - `Object<T>` implements `Hash` for any `T: HashObject`. The `T` can be `Box<dyn MyTrait>`, for example.
-//! - `impl_hash` can implement `Hash` for any type that implements `HashObject`, for example a trait object `dyn MyTrait` where `MyTrait` is a trait extending `HashObject`.
+//! - `Object<T>` implements `Hash` for any `T` that derefs to something
+//!   implementing `HashObject`.
+//! - `impl_hash` can implement `Hash` for any type that implements
+//!   `HashObject`, for example a trait object `dyn MyTrait` where `MyTrait` is
+//!   a trait extending `HashObject`.
 //!
 //! ```rust
 //! impl_hash! {
@@ -99,14 +116,15 @@ where
 }
 
 impl_eq! {
-    Object<T> where <T: EqObject>,
+    Object<T> where <T: Deref<Target=X>, X: EqObject>,
     dyn EqObject,
 }
 
 #[macro_export]
 macro_rules! impl_eq {
-    ($( $Type:ty $(where <$($G:ident: $Gb:ident),+>)? ),*$(,)?) => {
-        $(impl$(<$($G: $Gb),+>)? Eq for $Type {})*
+    ($( $Type:ty $(where <$($G:ident: $Gb:ident $(<$($GbIn:ident$(=$GbInEq:ty)?)+>)? ),+>)? ),*$(,)?) => {
+        $(impl$(<$($G: $Gb $(<$($GbIn$(=$GbInEq)?)+>)? ),+>)?
+        Eq for $Type where $Type: 'static {})*
     };
 }
 
@@ -133,15 +151,16 @@ where
 }
 
 impl_partial_eq! {
-    Object<T> where <T: PartialEqObject>,
+    Object<T> where <T: Deref<Target=X>, X: PartialEqObject>,
     dyn PartialEqObject,
     dyn EqObject,
 }
 
 #[macro_export]
 macro_rules! impl_partial_eq {
-    ($( $Type:ty $(where <$($G:ident: $Gb:ident),+>)? ),*$(,)?) => {
-        $(impl$(<$($G: $Gb),+>)? PartialEq for $Type {
+    ($( $Type:ty $(where <$($G:ident: $Gb:ident $(<$($GbIn:ident$(=$GbInEq:ty)?)+>)? ),+>)? ),*$(,)?) => {
+        $(impl$(<$($G: $Gb $(<$($GbIn$(=$GbInEq)?)+>)? ),+>)?
+        PartialEq for $Type where $Type: 'static {
             fn eq(&self, other: &Self) -> bool {
                 self.eq_object(other.as_partial_eq_object())
             }
@@ -166,14 +185,15 @@ impl<T: Hash> HashObject for T {
 }
 
 impl_hash! {
-    Object<T> where <T: HashObject>,
+    Object<T> where <T: Deref<Target=X>, X: HashObject>,
     dyn HashObject,
 }
 
 #[macro_export]
 macro_rules! impl_hash {
-    ($( $Type:ty $(where <$($G:ident: $Gb:ident),+>)? ),*$(,)?) => {
-        $(impl$(<$($G: $Gb),+>)? std::hash::Hash for $Type {
+    ($( $Type:ty $(where <$($G:ident: $Gb:ident $(<$($GbIn:ident$(=$GbInEq:ty)?)+>)? ),+>)? ),*$(,)?) => {
+        $(impl$(<$($G: $Gb $(<$($GbIn$(=$GbInEq)?)+>)? ),+>)?
+        std::hash::Hash for $Type {
             fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
                 self.hash_object(state);
             }

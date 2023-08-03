@@ -33,7 +33,7 @@ impl_hash(dyn MyTrait);
 Here are all the characteristics that come with HashObject:
 - anything implementing `Hash` automatically implements `HashObject`
 - `dyn HashObject` implements `Hash`.
-- `Object<T>` implements `Hash` for any `T: HashObject`. The `T` can be `Box<dyn MyTrait>`, for example.
+- `Object<T>` implements `Hash` for any `T` that derefs to something implementing `HashObject`.
 - `impl_hash` can implement `Hash` for any type that implements `HashObject`, for example a trait object `dyn MyTrait` where `MyTrait` is a trait extending `HashObject`.
 
 ```rust
