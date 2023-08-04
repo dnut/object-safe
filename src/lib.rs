@@ -74,43 +74,12 @@
 use core::{
     any::Any,
     hash::{Hash, Hasher},
-    ops::{Deref, DerefMut},
+    ops::Deref,
 };
-use std::{rc::Rc, sync::Arc};
 
-/// Convenient wrapper struct that implements any of the traits supported by
-/// this crate if the contained type derefs to something implementing the
-/// `**Obj` analog trait.
-#[derive(Clone, Copy, Debug)]
-pub struct Obj<T>(pub T);
+mod obj;
 
-impl Obj<()> {
-    pub fn boxed<T>(item: T) -> Obj<Box<T>> {
-        Obj(Box::new(item))
-    }
-
-    pub fn rc<T>(item: T) -> Obj<Rc<T>> {
-        Obj(Rc::new(item))
-    }
-
-    pub fn arc<T>(item: T) -> Obj<Arc<T>> {
-        Obj(Arc::new(item))
-    }
-}
-
-impl<T> Deref for Obj<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<T> DerefMut for Obj<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
+pub use obj::Obj;
 
 /// Helper trait to enable trait upcasting, since upcasting is not stable.
 pub trait AsAny: Any {
