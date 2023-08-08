@@ -1,6 +1,6 @@
 [package]
 name = "object-safe"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Implement object-unsafe traits for trait objects"
 license = "MIT OR Apache-2.0"

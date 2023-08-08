@@ -95,6 +95,7 @@ impl<T: Any> AsAny for T {
 /// Object-safe version of Eq
 pub trait EqObj: PartialEqObj {
     fn as_eq_object(&self) -> &dyn EqObj;
+    fn to_eq_object(self) -> Box<dyn EqObj>;
 }
 
 impl<T> EqObj for T
@@ -103,6 +104,10 @@ where
 {
     fn as_eq_object(&self) -> &dyn EqObj {
         self
+    }
+
+    fn to_eq_object(self) -> Box<dyn EqObj> {
+        Box::new(self)
     }
 }
 
@@ -145,6 +150,7 @@ macro_rules! impl_eq {
 pub trait PartialEqObj: AsAny {
     fn eq_object(&self, other: &dyn PartialEqObj) -> bool;
     fn as_partial_eq_object(&self) -> &dyn PartialEqObj;
+    fn to_partial_eq_object(self) -> Box<dyn PartialEqObj>;
 }
 
 impl<T> PartialEqObj for T
@@ -160,6 +166,10 @@ where
 
     fn as_partial_eq_object(&self) -> &dyn PartialEqObj {
         self
+    }
+
+    fn to_partial_eq_object(self) -> Box<dyn PartialEqObj> {
+        Box::new(self)
     }
 }
 
@@ -207,6 +217,9 @@ macro_rules! impl_partial_eq {
 pub trait HashObj {
     fn hash_object(&self, state: &mut dyn Hasher);
     fn as_hash_object(&self) -> &dyn HashObj;
+    fn to_hash_object(self) -> Box<dyn HashObj>
+    where
+        Self: 'static;
 }
 
 impl<T: Hash> HashObj for T {
@@ -216,6 +229,13 @@ impl<T: Hash> HashObj for T {
 
     fn as_hash_object(&self) -> &dyn HashObj {
         self
+    }
+
+    fn to_hash_object(self) -> Box<dyn HashObj>
+    where
+        Self: 'static,
+    {
+        Box::new(self)
     }
 }
 
@@ -292,20 +312,32 @@ mod test {
         hasher.finish()
     }
 
-    /// compiler test: hash
-    trait MyHash: HashObj {}
-    #[derive(Hash)]
-    struct MyHashWrapper(Obj<Box<dyn MyHash>>);
+    mod obj_tests {
+        use crate::*;
+        /// compiler test: hash
+        trait MyHash: HashObj {}
+        #[derive(Hash)]
+        struct MyHashWrapper(Obj<Box<dyn MyHash>>);
 
-    /// compiler test: partial eq
-    trait MyPartialEq: PartialEqObj {}
-    #[derive(PartialEq)]
-    struct MyPartialEqWrapper(Obj<Box<dyn MyPartialEq>>);
+        /// compiler test: partial eq
+        trait MyPartialEq: PartialEqObj {}
+        #[derive(PartialEq)]
+        struct MyPartialEqWrapper(Obj<Box<dyn MyPartialEq>>);
 
-    /// compiler test: eq
-    trait MyEq: EqObj + PartialEqObj {}
-    #[derive(PartialEq, Eq)]
-    struct MyEqWrapper(Obj<Box<dyn MyEq>>);
+        /// compiler test: eq
+        trait MyEq: EqObj + PartialEqObj {}
+        #[derive(PartialEq, Eq)]
+        struct MyEqWrapper(Obj<Box<dyn MyEq>>);
+    }
+
+    mod impl_tests {
+        use crate::*;
+        trait MyTrait: HashObj + EqObj + PartialEqObj {}
+
+        impl_hash!(dyn MyTrait);
+        impl_eq!(dyn MyTrait);
+        impl_partial_eq!(dyn MyTrait);
+    }
 }
 
 // /// TODO:
