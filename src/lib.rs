@@ -207,7 +207,7 @@ macro_rules! impl_partial_eq {
         ),+>)?
         PartialEq for $Type where $Type: 'static {
             fn eq(&self, other: &Self) -> bool {
-                self.eq_object(other.as_partial_eq_object())
+                self.deref().eq_object(other.deref().as_partial_eq_object())
             }
         })*
     };
@@ -272,7 +272,7 @@ macro_rules! impl_hash {
         ),+>)?
         std::hash::Hash for $Type {
             fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-                self.hash_object(state);
+                self.deref().hash_object(state);
             }
         }
     )*};
@@ -318,25 +318,86 @@ mod test {
         trait MyHash: HashObj {}
         #[derive(Hash)]
         struct MyHashWrapper(Obj<Box<dyn MyHash>>);
+        impl<T> MyHash for T where T: Hash {}
 
         /// compiler test: partial eq
         trait MyPartialEq: PartialEqObj {}
         #[derive(PartialEq)]
         struct MyPartialEqWrapper(Obj<Box<dyn MyPartialEq>>);
+        impl<T> MyPartialEq for T where T: PartialEq + 'static {}
 
         /// compiler test: eq
-        trait MyEq: EqObj + PartialEqObj {}
-        #[derive(PartialEq, Eq)]
+        trait MyEq: EqObj + PartialEqObj + std::fmt::Debug {}
+        #[derive(PartialEq, Eq, Debug)]
         struct MyEqWrapper(Obj<Box<dyn MyEq>>);
+        impl<T> MyEq for T where T: Eq + 'static + std::fmt::Debug {}
+
+        #[test]
+        fn hash_obj_works() {
+            let a = super::hash(0);
+            let b = super::hash(Box::new(0));
+            let c = super::hash(Obj(Box::new(0)));
+            let d = super::hash(MyHashWrapper(Obj(Box::new(0))));
+            assert_eq!(a, b);
+            assert_eq!(a, c);
+            assert_eq!(a, d);
+        }
+
+        #[test]
+        fn obj_box_dyn_custom_eq() {
+            assert_eq!(
+                Obj(Box::new(0) as Box<dyn MyEq>),
+                Obj(Box::new(0) as Box<dyn MyEq>)
+            );
+            assert_ne!(
+                Obj(Box::new(0) as Box<dyn MyEq>),
+                Obj(Box::new(1) as Box<dyn MyEq>)
+            );
+        }
+
+        #[test]
+        fn wrapped_obj_box_dyn_custom_eq() {
+            assert_eq!(
+                MyEqWrapper(Obj(Box::new(0) as Box<dyn MyEq>)),
+                MyEqWrapper(Obj(Box::new(0) as Box<dyn MyEq>))
+            );
+            assert_ne!(
+                MyEqWrapper(Obj(Box::new(0) as Box<dyn MyEq>)),
+                MyEqWrapper(Obj(Box::new(1) as Box<dyn MyEq>))
+            );
+        }
+
+        #[test]
+        fn obj_box_eq() {
+            assert_eq!(Obj(Box::new(0)), Obj(Box::new(0)));
+            assert_ne!(Obj(Box::new(0)), Obj(Box::new(1)));
+        }
+
+        #[test]
+        fn wrapped_ob_box_eq() {
+            assert_eq!(MyEqWrapper(Obj(Box::new(0))), MyEqWrapper(Obj(Box::new(0))));
+            assert_ne!(MyEqWrapper(Obj(Box::new(0))), MyEqWrapper(Obj(Box::new(1))));
+        }
     }
 
     mod impl_tests {
         use crate::*;
         trait MyTrait: HashObj + EqObj + PartialEqObj {}
+        impl<T> MyTrait for T where T: Hash + Eq + PartialEq + 'static {}
 
         impl_hash!(dyn MyTrait);
         impl_eq!(dyn MyTrait);
         impl_partial_eq!(dyn MyTrait);
+
+        #[test]
+        fn box_dyn_custom_eq() {
+            if Box::new(0) as Box<dyn MyTrait> != Box::new(0) as Box<dyn MyTrait> {
+                panic!("should be equal");
+            }
+            if Box::new(0) as Box<dyn MyTrait> == Box::new(1) as Box<dyn MyTrait> {
+                panic!("should not be equal");
+            }
+        }
     }
 }
 
